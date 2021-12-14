@@ -1,0 +1,143 @@
+#!/bin/bash
+
+action=""
+
+# functions
+next()       { osascript -e 'tell application "Music" to next track'; }
+previous()   { osascript -e 'tell application "Music" to previous track'; }
+love()       { osascript -e 'tell application "Music" to set loved of current track to true'; }
+move()       { osascript -e 'tell application "Music" to set player position to (player position + 10)'; }
+replay()     { osascript -e 'tell application "Music" to set player position to (player position - 700 )'; }
+artist()     { artistv=$(osascript -e 'tell application "Music" to get artist of current track'); }
+track()      { trackv=$(osascript -e 'tell application "Music" to get name of current track'); }
+position()   { positionv=$(osascript -e 'tell application "Music" to player position' | awk '{ n = split($0,part,"."); print part[1]" sec" }'); }
+duration()   { timev=$(osascript -e 'tell application "Music" to get time of current track'); }
+state()      { statev=$(osascript -e 'tell application "Music" to player state as string'); }
+properties() { propertiesv=$(osascript -e 'tell application "Music" to get properties of current track'); }
+
+# more osascript and iTunes / Music:
+# https://alvinalexander.com/apple/itunes-applescript-examples-scripts-mac-reference/
+
+nicetime() {
+	secs=${1}
+
+	h=$(( secs / 3600 ))
+	m=$(( ( secs / 60 ) % 60 ))
+	s=$(( secs % 60 ))
+
+	if [ ${h} -eq 0 ] ; then
+		if [ ${m} -le 9 ] ; then
+			printf "%1d:%02d " $m $s
+		else
+			printf "%02d:%02d " $m $s
+		fi
+	else 
+		printf "%02d:%02d:%02d " $h $m $s
+	fi
+}
+
+shuffle()  {
+	shuffleState=$(nice -n20 osascript -e 'tell application "Music" to shuffle enabled' 2>> /dev/null);
+	if ${shuffleState} ; then
+		osascript -e 'tell application "Music" to set shuffle enabled to false';
+	else
+		osascript -e 'tell application "Music" to set shuffle enabled to true';
+	fi
+}
+
+playpause() { osascript -e 'tell application "Music" to playpause'; }
+
+info() {
+	position
+	state
+	duration
+	properties
+	clear
+
+	echo ${propertiesv} | awk -F', ' '{print $11}' | sed 's/:/ : /g'
+	echo ${propertiesv} | awk -F', ' '{print $4}' | sed 's/:/ : /g'
+	echo ${propertiesv} | awk -F', ' '{print $14}' | sed 's/:/ : /g'
+
+	nicetime ${positionv}
+	echo -n "van "
+	echo ${propertiesv} | awk -F', ' '{print $9}' | cut -d":" -f2-
+	echo "player is : "${statev}
+	echo "/===================\\"
+	echo "| l for love        |"
+	echo "| n/N for next/prev |"
+	echo "| s for (un)shuffle |"
+	echo "| p for play pause  |"
+	echo "| q to quit         |"
+	echo "| r to replay       |"
+	echo "\\===================/"
+
+
+	iamat=$(echo ${timev}":"${positionv} | awk -F":" '{print ( ($1 * 60) + $2 ) }')
+	intime $(echo ${positionv} | cut -f1 -d" ") ${iamat} 21
+
+	tput setaf 2
+	echo -n "l/n/s/p/q > "
+	tput sgr0
+}
+
+intime() {
+	probar=$(echo 'scale=2;'"($1 / $2) * $3" | bc)
+	rest=$( echo "$3 - $probar" | bc)
+	probar=$(echo "$probar" | cut -f1 -d".")
+	rest=$(echo "$rest" | cut -f1 -d".")
+	progressbar "${probar}" "${rest}"
+}
+
+progressbar() {
+	tput setaf 3
+	tput setab 2
+	printf "%$1s" " "
+	tput sgr0
+	tput setab 3
+	tput blink
+	printf ">"
+	tput sgr0
+	tput setab 1
+	printf "%$2s" " "
+	tput sgr0
+	printf "\n"
+}
+
+
+while [ "${action}" = "" ] ; do
+	info
+	read -t 3 -n 1 action
+	case $action in
+		l)
+		love
+		action=""
+		;;
+		n)
+		next
+		action=""
+		;;
+		N)
+		previous
+		action=""
+		;;
+		q)
+		exit
+		;;
+		r)
+		replay &
+		action=""
+		;;
+		s)
+		shuffle
+		action=""
+		;;
+		p)
+		playpause
+		action=""
+		;;
+		*)
+		action=""
+		;;
+	esac
+done
+
