@@ -3,22 +3,34 @@
 action=""
 
 # functions
-next()       { osascript -e 'tell application "Music" to next track'; }
-previous()   { osascript -e 'tell application "Music" to previous track'; }
-love()       { osascript -e 'tell application "Music" to set loved of current track to true'; }
-move()       { osascript -e 'tell application "Music" to set player position to (player position + 10)'; }
-replay()     { osascript -e 'tell application "Music" to set player position to (player position - 700 )'; }
-artist()     { artistv=$(osascript -e 'tell application "Music" to get artist of current track'); }
-track()      { trackv=$(osascript -e 'tell application "Music" to get name of current track'); }
-position()   { positionv=$(osascript -e 'tell application "Music" to player position' | awk '{ n = split($0,part,"."); print part[1]" sec" }'); }
-duration()   { timev=$(osascript -e 'tell application "Music" to get time of current track'); }
-state()      { statev=$(osascript -e 'tell application "Music" to player state as string'); }
-properties() { propertiesv=$(osascript -e 'tell application "Music" to get properties of current track'); }
+next()            { osascript -e 'tell application "Music" to next track'; }
+previous()        { osascript -e 'tell application "Music" to previous track'; }
+love()            { osascript -e 'tell application "Music" to set loved of current track to true'; }
+move()            { osascript -e 'tell application "Music" to set player position to (player position + 10)'; }
+replay()          { osascript -e 'tell application "Music" to set player position to (player position - 700 )'; }
+artist()          { artistv=$(osascript -e 'tell application "Music" to get artist of current track'); }
+track()           { trackv=$(osascript -e 'tell application "Music" to get name of current track'); }
+position()        { positionv=$(osascript -e 'tell application "Music" to player position' | awk '{ n = split($0,part,"."); print part[1]" sec" }'); }
+duration()        { timev=$(osascript -e 'tell application "Music" to get time of current track'); }
+state()           { statev=$(osascript -e 'tell application "Music" to player state as string'); }
+properties()      { propertiesv=$(osascript -e 'tell application "Music" to get properties of current track'); }
+getshufflestate() { shufflev=$(osascript -e 'tell application "Music" to shuffle enabled' 2>> /dev/null); }
+getvolume()       { volumev=$(osascript -e 'tell application "Music" to sound volume as integer'); }
+chvolume()        {
+	vol=$(osascript -e 'tell application "Music" to sound volume as integer')
+	if [ "${1}" == "down" ] ; then
+		newvol=$((vol-10))
+	elif [ "${1}" == "up" ] ; then
+		newvol=$((vol+10))
+	fi
+	osascript -e 'tell application "Music" to set sound volume to "'$newvol'"';
+	getvolume
+}
 
 # more osascript and iTunes / Music:
 # https://alvinalexander.com/apple/itunes-applescript-examples-scripts-mac-reference/
 
-nicetime() {
+nicetime()        {
 	secs=${1}
 
 	h=$(( secs / 3600 ))
@@ -36,7 +48,7 @@ nicetime() {
 	fi
 }
 
-shuffle()  {
+shuffle()         {
 	shuffleState=$(nice -n20 osascript -e 'tell application "Music" to shuffle enabled' 2>> /dev/null);
 	if ${shuffleState} ; then
 		osascript -e 'tell application "Music" to set shuffle enabled to false';
@@ -45,13 +57,14 @@ shuffle()  {
 	fi
 }
 
-playpause() { osascript -e 'tell application "Music" to playpause'; }
+playpause()       { osascript -e 'tell application "Music" to playpause'; }
 
-info() {
+info()            {
 	position
 	state
 	duration
 	properties
+	getshufflestate
 	clear
 
 	echo ${propertiesv} | awk -F', ' '{print $11}' | sed 's/:/ : /g'
@@ -61,13 +74,15 @@ info() {
 	nicetime ${positionv}
 	echo -n "van "
 	echo ${propertiesv} | awk -F', ' '{print $9}' | cut -d":" -f2-
-	echo "player is : "${statev}
+	echo "player is : ${statev} volume : ${volumev}/100"
+	echo "shuffle is: ${shufflev}"
 	echo "/===================\\"
 	echo "| l for love        |"
 	echo "| n/N for next/prev |"
 	echo "| s for (un)shuffle |"
 	echo "| p for play pause  |"
 	echo "| q to quit         |"
+	echo "| +/- for volume    |"
 	echo "| r to replay       |"
 	echo "\\===================/"
 
@@ -85,25 +100,45 @@ intime() {
 	rest=$( echo "$3 - $probar" | bc)
 	probar=$(echo "$probar" | cut -f1 -d".")
 	rest=$(echo "$rest" | cut -f1 -d".")
-	progressbar "${probar}" "${rest}"
+
+	if [ "${probar}" == "" ] ; then
+		probar=0
+	fi
+
+	if [ ${rest} -gt 19 ] ; then
+		rest=19
+	fi
+
+	if [ ${probar} -ge 0 ] ; then
+		progressbar "${probar}" "${rest}"
+	else
+		progressbar 0 20
+	fi
 }
 
 progressbar() {
+	size=$2
 	tput setaf 3
 	tput setab 2
-	printf "%$1s" " "
+
+	if [ $1 -ge 1 ] ; then
+		printf "%$1s" " "
+	else
+		((size=size+1))
+	fi
+
 	tput sgr0
 	tput setab 3
 	tput blink
 	printf ">"
 	tput sgr0
 	tput setab 1
-	printf "%$2s" " "
+	printf "%${size}s" " "
 	tput sgr0
 	printf "\n"
 }
 
-
+getvolume
 while [ "${action}" = "" ] ; do
 	info
 	read -t 3 -n 1 action
@@ -135,9 +170,16 @@ while [ "${action}" = "" ] ; do
 		playpause
 		action=""
 		;;
+		"-")
+		chvolume down
+		action=""
+		;;
+		"+")
+		chvolume up
+		action=""
+		;;
 		*)
 		action=""
 		;;
 	esac
 done
-
