@@ -41,14 +41,11 @@ nicetime()        {
 
 	if [ ${h} -eq 0 ] ; then
 		if [ ${m} -le 9 ] ; then
-#			printf "%1d:%02d " $m $s
 			nicetimev=$(printf "%1d:%02d " $m $s)
 		else
-#			printf "%02d:%02d " $m $s
 			nicetimev=$(printf "%02d:%02d " $m $s)
 		fi
 	else 
-#		printf "%02d:%02d:%02d " $h $m $s
 		nicetimev=$(printf "%02d:%02d:%02d " $h $m $s)
 	fi
 }
