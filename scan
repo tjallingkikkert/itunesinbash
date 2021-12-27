@@ -1,6 +1,8 @@
 #!/bin/bash
 
 action=""
+trackid=0
+xinfo=0
 
 # functions
 next()            { osascript -e 'tell application "Music" to next track'; }
@@ -39,12 +41,15 @@ nicetime()        {
 
 	if [ ${h} -eq 0 ] ; then
 		if [ ${m} -le 9 ] ; then
-			printf "%1d:%02d " $m $s
+#			printf "%1d:%02d " $m $s
+			nicetimev=$(printf "%1d:%02d " $m $s)
 		else
-			printf "%02d:%02d " $m $s
+#			printf "%02d:%02d " $m $s
+			nicetimev=$(printf "%02d:%02d " $m $s)
 		fi
 	else 
-		printf "%02d:%02d:%02d " $h $m $s
+#		printf "%02d:%02d:%02d " $h $m $s
+		nicetimev=$(printf "%02d:%02d:%02d " $h $m $s)
 	fi
 }
 
@@ -59,23 +64,70 @@ shuffle()         {
 
 playpause()       { osascript -e 'tell application "Music" to playpause'; }
 
+getloved()       {
+	loved=$(nice -n20 osascript -e 'tell application "Music" to loved of current track');
+	disliked=$(nice -n20 osascript -e 'tell application "Music" to disliked of current track');
+
+	if ${loved} ; then
+		rating="love this"
+	elif ${disliked} ; then
+		rating="dislike this"
+	else
+		rating="just a song"
+	fi
+}
+
+
 info()            {
-	position
-	state
-	duration
+	if [ "$3" == "" ] ; then
+		input="non"
+	else
+		input=$3
+		getvolume
+		state
+		duration
+	fi
+
 	properties
+	trackid=$(echo ${propertiesv} | awk -F', ' '{print $2}' | head -1 | cut -f2 -d":")
+
+	same=0
+	if [ ${trackid} -eq $1 ] ; then
+		same=1
+	fi
+
+	position
 	getshufflestate
-	clear
+	getloved
 
-	echo ${propertiesv} | awk -F', ' '{print $11}' | sed 's/:/ : /g'
-	echo ${propertiesv} | awk -F', ' '{print $4}' | sed 's/:/ : /g'
-	echo ${propertiesv} | awk -F', ' '{print $14}' | sed 's/:/ : /g'
-
+	artist_line=$(echo ${propertiesv} | awk -F', ' '{print $11}' | sed 's/:/ : /g')
+	song_line=$(echo ${propertiesv} | awk -F', ' '{print $4}' | sed 's/:/ : /g')
+	album_line=$(echo ${propertiesv} | awk -F', ' '{print $14}' | sed 's/:/ : /g')
+	duration_line=$(echo ${propertiesv} | awk -F', ' '{print $9}' | cut -d":" -f2-)
+	iamat=$(echo ${timev}":"${positionv} | awk -F":" '{print ( ($1 * 60) + $2 ) }')
 	nicetime ${positionv}
-	echo -n "van "
-	echo ${propertiesv} | awk -F', ' '{print $9}' | cut -d":" -f2-
+
+	if [ "${statev}" == "playing" ] ; then
+		clear
+		redraw
+	fi
+
+	tput cup 20 0 
+	tput setaf 2
+	echo -n "l/n/s/p/q > "
+	tput sgr0
+}
+
+redraw () {
+	echo ${artist_line}
+	echo ${song_line}
+	echo ${album_line}
+	echo ${nicetimev}"van "${duration_line}
+
 	echo "player is : ${statev} volume : ${volumev}/100"
 	echo "shuffle is: ${shufflev}"
+	echo "trackid: " ${trackid}" dezelfde: "${same}
+	echo "loved : ${rating}"
 	echo "/===================\\"
 	echo "| l for love        |"
 	echo "| n/N for next/prev |"
@@ -84,15 +136,12 @@ info()            {
 	echo "| q to quit         |"
 	echo "| +/- for volume    |"
 	echo "| r to replay       |"
+	echo "| x for info        |"
 	echo "\\===================/"
-
-
-	iamat=$(echo ${timev}":"${positionv} | awk -F":" '{print ( ($1 * 60) + $2 ) }')
 	intime $(echo ${positionv} | cut -f1 -d" ") ${iamat} 21
-
-	tput setaf 2
-	echo -n "l/n/s/p/q > "
-	tput sgr0
+	if [ ${xinfo} -eq 1 ] ; then
+		echo ${propertiesv}
+	fi
 }
 
 intime() {
@@ -138,48 +187,51 @@ progressbar() {
 	printf "\n"
 }
 
-getvolume
+info ${trackid} " " S
 while [ "${action}" = "" ] ; do
-	info
-	read -t 3 -n 1 action
+	read -t 2 -n 1 action
 	case $action in
 		l)
-		love
-		action=""
-		;;
+			love
+			;;
 		n)
-		next
-		action=""
-		;;
+			next
+			;;
 		N)
-		previous
-		action=""
-		;;
+			previous
+			;;
 		q)
-		exit
-		;;
+			exit
+			;;
 		r)
-		replay &
-		action=""
-		;;
+			replay &
+			;;
 		s)
-		shuffle
-		action=""
-		;;
+			shuffle
+			;;
 		p)
-		playpause
-		action=""
-		;;
+			playpause
+			;;
 		"-")
-		chvolume down
-		action=""
-		;;
+			chvolume down
+			;;
 		"+")
-		chvolume up
-		action=""
-		;;
+			chvolume up
+			;;
+		x)
+			if [ ${xinfo} -eq 1 ] ; then
+				xinfo=0
+			else
+				xinfo=1
+			fi
+			;;
 		*)
-		action=""
-		;;
+			;;
 	esac
+
+	if [ "$action" != "" ] ; then
+		lastaction=$action
+	fi
+	info ${trackid} ${lastaction} ${action}
+	action=""
 done
