@@ -1,8 +1,8 @@
 # itunesinbash
 control Apple Music / iTunes from the terminal
 
-controls:
-l to set "loved" to true
+controls:\n
+l to set "loved" to true\n
 n/N for next/previous song
 s to toggle shuffle on/off
 p to toggle pause/play
